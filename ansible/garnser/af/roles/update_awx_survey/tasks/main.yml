@@ -1,0 +1,83 @@
+---
+
+- name: "Display awx_survey_specs"
+  ansible.builtin.debug:
+    var: awx_survey_specs
+    verbosity: 2
+
+- name: "update_awx_surveys | Define AWX token"
+  set_fact:
+    awx_token: "{{ lookup('keeper', uid='coVnNGz29k-yal6uKs2ZLA', field='password') }}"
+  no_log: true
+
+- name: "update_awx_surveys | Define template subset"
+  block:
+
+    - name: "Load the magic"
+      include_tasks: update_subset_template.yml
+      loop: "{{ template_names.split(',') }}"
+      loop_control:
+        loop_var: template_name
+        
+    - name: "make awx_survey_specs empty on first loop"
+      set_fact:
+        awx_survey_specs: "{{ subset_template_survey_spec|d([]) }}"
+
+  when: template_names|d('')|length > 0
+
+- name: "Update subset (group)"
+  block:
+
+    - name: "Identify subset"
+      set_fact:
+        identified_subset: "{{ identified_subset|d([]) + [survey_spec] }}"
+      loop: "{{ awx_survey_specs }}"
+      loop_control:
+        loop_var: survey_spec
+      when: survey_spec.group == survey_group
+
+    - name: "Construct subset"
+      set_fact:
+        awx_survey_specs: "{{ identified_subset|d([]) }}"
+
+  when: survey_group|d('')|length > 0
+
+- name: "Update subset (status)"
+  block:
+
+    - name: "Identify subset"
+      set_fact:
+        identified_subset: "{{ identified_subset|d([]) + [survey_spec] }}"
+      loop: "{{ awx_survey_specs }}"
+      loop_control:
+        loop_var: survey_spec
+      when: survey_spec.status == survey_status|lower
+
+    - name: "Construct subset"
+      set_fact:
+        awx_survey_specs: "{{ identified_subset|d([]) }}"
+
+  when: survey_status|d('')|length > 0
+
+- name: "Update subset (host)"
+  block:
+
+    - name: "Identify subset"
+      set_fact:
+        identified_subset: "{{ identified_subset|d([]) + [survey_spec] }}"
+      loop: "{{ awx_survey_specs }}"
+      loop_control:
+        loop_var: survey_spec
+      when:
+        - host in groups[survey_spec.group]
+        - host in groups["status_" + survey_spec.status]
+
+    - name: "Construct subset"
+      set_fact:
+        awx_survey_specs: "{{ identified_subset|d([]) }}"
+
+  when: host|d('')|length > 0
+
+- name: "update_awx_surveys | Include update_templates"
+  include_tasks: update_templates.yml
+  loop: "{{ awx_survey_specs }}"

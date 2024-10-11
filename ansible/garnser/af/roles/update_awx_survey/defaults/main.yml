@@ -1,0 +1,13 @@
+---
+
+awx_endpoint: "https://awx.helpmesee.org/api/v2"
+awx_headers:
+  Authorization: "Bearer {{ awx_token|trim }}"
+  Accept: "application/json"
+  Content-Type: "application/json"
+template_name: ''
+netbox_token_uid: 'hArcqJAGKJqR-1BhAyZWEQ' #sa.awx2netbox_ro
+netbox_uri: "https://netbox.helpmesee.org/"
+keeper_ro_bind_pass: 'K-7X5YFEuD1LXQa_ztGCcQ'
+keeper_rw_bind_pass: 'F2eTFm91OYaKeO5mz_u_3g'
+ldap_templates: ["resetLDAPUserPassword", "addUserToLDAPGroup", "addUserToLDAPRole", "removeLDAPUser"]

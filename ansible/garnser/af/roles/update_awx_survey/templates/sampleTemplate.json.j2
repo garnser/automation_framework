@@ -1,0 +1,42 @@
+{
+    "name": "",
+    "description": "",
+    "spec": [
+        {
+            "question_name": "Sites",
+            "question_description": "The sites which you want to deploy to, in addition/instead of induvidual systems below.",
+            "required": false,
+            "type": "multiselect",
+            "variable": "sites",
+            "min": null,
+            "max": null,
+            "default": "",
+            "choices": "{{ _sites | join('\\n') }}",
+            "new_question": true
+        },
+        {
+            "question_name": "System",
+            "question_description": "The system which you want to deploy to, in addition/instead of sites above.",
+            "required": false,
+            "type": "multiselect",
+            "variable": "system",
+            "min": null,
+            "max": null,
+            "default": "",
+            "choices": "{{ _hosts | join('\\n') }}",
+            "new_question": true
+        },
+        {
+            "question_name": "Multiplechoice input",
+            "question_description": "Select a multiplechoice option",
+            "required": false,
+            "type": "multiplechoice",
+            "variable": "multiplechoice_variable",
+            "min": 0,
+            "max": 1024,
+            "default": "no",
+            "choices": "no\nyes",
+            "new_question": true
+        }
+    ]
+}

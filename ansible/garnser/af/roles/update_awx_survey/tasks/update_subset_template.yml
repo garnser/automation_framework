@@ -1,0 +1,17 @@
+---
+
+- name: identify subset
+  set_fact:
+    identified_subset: "{{ survey_spec }}"
+  loop: "{{ awx_survey_specs }}"
+  loop_control:
+    loop_var: survey_spec
+  when: "template_name in survey_spec.name"
+
+- name: construct subset
+  set_fact:
+    subset_template_survey_spec: "{{ subset_template_survey_spec | default([]) + [{
+    'group': identified_subset.group,
+    'status': identified_subset.status,
+    'name': [template_name]
+    }] }}"

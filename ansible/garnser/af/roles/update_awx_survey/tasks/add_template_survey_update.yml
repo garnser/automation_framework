@@ -1,0 +1,11 @@
+- name: "Add Template Survey | PATCH Assign Survey for {{ _awx_template }} {{ awx_endpoint }}/job_templates/{{ _awx_template }}/survey_spec/"
+  uri:
+    url: "{{ awx_endpoint }}/job_templates/{{ _awx_template }}/"
+    method: PATCH
+    headers: "{{ awx_headers }}"
+    return_content: yes
+    body_format: json
+    body:
+      survey_enabled: "true"
+    status_code: [200, 201, 204]
+  connection: local

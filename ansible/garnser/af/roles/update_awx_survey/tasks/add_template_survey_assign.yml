@@ -1,0 +1,9 @@
+- name: "Add Template Survey | POST {{ _awx_template }} {{ awx_endpoint }}/job_templates/{{ _awx_template }}/survey_spec/"
+  uri:
+    url: "{{ awx_endpoint }}/job_templates/{{ _awx_template }}/survey_spec/"
+    method: POST
+    headers: "{{ awx_headers }}"
+    return_content: yes
+    body_format: json
+    body: "{{ lookup('template', './' + _awx_template | regex_replace('Prod') + '.json.j2') }}"
+    status_code: [200, 201, 204]

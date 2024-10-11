@@ -1,0 +1,122 @@
+---
+
+- name: "Empty facts"
+  set_fact:
+    _sites: []
+    _hosts: []
+
+- name: "Get splunk pointers"
+  include_tasks: get_splunk_pointers.yml
+  when: _template_name == "disableSplunkPointers"
+  loop: "{{ item.name }}"
+  loop_control:
+    loop_var: _template_name
+
+- name: "Get LDAP users"
+  include_tasks: get_ldap_info.yml
+  when: _template_name in ldap_templates
+  loop: "{{ item.name }}"
+  loop_control:
+    loop_var: _template_name
+
+- name: "Get Netbox services"
+  include_tasks: get_netbox_services.yml
+  when: _template_name == "addSimToNetbox"
+  loop: "{{ item.name }}"
+  loop_control:
+    loop_var: _template_name
+
+- name: "Get {{ item.group }} hosts"
+  set_fact:
+    _hosts: "{{ _hosts|d([]) + [ inv_host ] }}"
+  with_inventory_hostnames:
+    - "{{ item.group }}"
+  loop_control:
+    loop_var: inv_host
+  when: item.status in (hostvars[inv_host]['status']).value
+
+- name: "Sort _hosts"
+  set_fact:
+    _hosts: "{{ _hosts | sort }}"
+
+- name: "Find sites"
+  set_fact:
+    _sites: "{{ _sites|d([]) + [ 'site_' + hostvars[_host]['site'] ] }}"
+  loop: "{{ _hosts }}"
+  loop_control:
+    loop_var: _host
+  when: hostvars[_host]['site'] != "orphans"
+
+- name: "Make sites unique"
+  set_fact:
+    _sites: "{{ _sites | unique | sort }}"
+
+# ADD NEW SURVEY?
+- name: "Add Template Survey Loop"
+  include_tasks: "add_template_survey_assign.yml"
+  loop: "{{ item.name }}"
+  loop_control:
+    loop_var: _awx_template
+  no_log: true
+  when:
+    - _awx_template not in ldap_templates
+    - _awx_template != "disableSplunkPointers"
+    - _awx_template != "addSimToNetbox"
+
+
+- name: Add Template Survey | disableSplunkPointers
+  include_tasks: add_template_survey_disable_splunk_pointers.yml
+  when: _awx_template == "disableSplunkPointers"
+  loop: "{{ item.name }}"
+  loop_control:
+    loop_var: _awx_template
+
+- name: Add Template Survey | resetLDAPUserPassword
+  include_tasks: add_template_survey_reset_ldap_user_password.yml
+  when: _awx_template == "resetLDAPUserPassword"
+  loop: "{{ item.name }}"
+  loop_control:
+    loop_var: _awx_template
+
+- name: Add Template Survey | removeLDAPUser
+  include_tasks: add_template_survey_remove_ldap_user.yml
+  when: _awx_template == "removeLDAPUser"
+  loop: "{{ item.name }}"
+  loop_control:
+    loop_var: _awx_template
+
+- name: Add Template Survey | addUserToLDAPGroup
+  include_tasks: add_template_survey_add_user_to_ldap_group.yml
+  when: _awx_template == "addUserToLDAPGroup"
+  loop: "{{ item.name }}"
+  loop_control:
+    loop_var: _awx_template
+
+- name: Add Template Survey | addUserToLDAPRole
+  include_tasks: add_template_survey_add_user_to_ldap_role.yml
+  when: _awx_template == "addUserToLDAPRole"
+  loop: "{{ item.name }}"
+  loop_control:
+    loop_var: _awx_template
+
+- name: Add Template Survey | addSimToNetbox
+  include_tasks: add_template_survey_add_sim_to_netbox.yml
+  when: _awx_template == "addSimToNetbox"
+  loop: "{{ item.name }}"
+  loop_control:
+    loop_var: _awx_template
+
+
+
+- name: "Add Template Survey | Enable Survey"
+  include_tasks: "add_template_survey_update.yml"
+  loop: "{{ item.name }}"
+  loop_control:
+    loop_var: _awx_template
+  no_log: true
+  when:
+    - _awx_template not in ldap_templates
+    - _awx_template != "disableSplunkPointers"
+    - _awx_template != "addSimToNetbox"
+
+
