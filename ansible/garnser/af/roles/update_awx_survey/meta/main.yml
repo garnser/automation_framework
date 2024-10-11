@@ -3,7 +3,7 @@
 galaxy_info:
   author: jpetersson
   description: Update AWX settings
-  company: "HelpMeSee, Inc"
+  company: "Jonathan Petersson Consulting"
   license: "license (BSD, MIT)"
   min_ansible_version: 2.9
   platforms:
