@@ -1,0 +1,8 @@
+ansible==6.6.0
+ansible-core==2.13.6
+ansible-merge-vars
+ansible-pylibssh==1.1.0
+ansible-runner==2.3.4
+Jinja2
+PyYAML==6.0
+requests
