@@ -1,0 +1,47 @@
+---
+
+request_id: ""
+netbox_uri: ""
+netbox_token: ""
+
+awx_uri: ""
+awx_token_uid: ""
+awx_token: ""
+
+group_filter: ""
+
+# Actions
+nb_create_delete_actions:
+  - create
+  - delete
+
+nb_update_actions:
+  - update
+
+# Changed Object Types
+nb_changed_object_types_host:
+  - dcim.device
+  - virtualization.virtualmachine
+
+nb_changed_object_types_service:
+  - ipam.service
+
+# Groups to Check in nb_diff_keys
+nb_groups:
+  - tags
+  - device_role
+  - platform
+  - site
+
+# Change Types to Filter
+nb_change_types:
+  - dcim.device
+  - virtualization.virtualmachine
+  - ipam.service
+  - tenancy.contactassignment
+  - extras.configcontext
+
+# Define triggers
+triggers:
+  - name: 'awx_template_name'
+    pattern: 'netbox_cc_regex_pattern'

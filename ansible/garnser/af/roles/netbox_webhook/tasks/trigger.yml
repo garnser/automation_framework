@@ -1,0 +1,12 @@
+---
+
+- name: "Trigger {{ job_template }}"
+  uri:
+    url: "{{ awx_endpoint }}/job_templates/{{ job_template }}/launch/"
+    method: POST
+    headers: "{{ awx_headers }}"
+    status_code: [200, 201, 202]
+    validate_certs: false
+    body_format: json
+    body:
+      extra_vars: "{{ trigger_extra_vars }}"
