@@ -9,4 +9,4 @@
     validate_certs: false
     body_format: json
     body:
-      extra_vars: "{{ trigger_extra_vars }}"
+      extra_vars: "{{ trigger_extra_vars | combine(trigger.extra_vars|d({})) }}"

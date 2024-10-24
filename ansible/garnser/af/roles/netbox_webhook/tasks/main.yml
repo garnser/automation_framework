@@ -1,118 +1,45 @@
 ---
 
-- name: Define Netbox request filter based on request ID
+- name: "Update inventory"
+  uri:
+    url: "{{ awx_endpoint }}/inventory_sources/{{ awx_inventory_source }}/update/"
+    method: POST
+    headers: "{{ awx_headers }}"
+    status_code: [200, 201, 202]
+    validate_certs: false
+  register: awx_inventory_update
+
+- name: "Check API status until it changes to successful"
+  uri:
+    url: "{{ awx_endpoint }}/inventory_updates/{{ awx_inventory_update.json.id }}/"
+    method: GET
+    headers: "{{ awx_headers }}"
+    status_code: [200, 201, 202]
+    validate_certs: false
+  failed_when: false
+  register: status_response
+  until: status_response.json.status == "successful"
+  retries: 30
+  delay: 5
+
+- name: "Define request_nb_filter"
   set_fact:
     request_nb_filter: "request_id={{ netbox_request_id }}"
 
-- name: Retrieve change data from Netbox API
+- name: "Pull change data"
   set_fact:
     netbox_payload: "{{ query('netbox.netbox.nb_lookup', 'object-changes', validate_certs=False, api_endpoint=netbox_uri, api_filter=request_nb_filter, token=netbox_token) }}"
 
-- name: Filter Netbox payload for relevant change types
+- name: "Filter NetBox payload for matching entries"
   set_fact:
-    netbox_request_payloads: "{{ netbox_payload | selectattr('changed_object_type', 'in', nb_change_types) | list }}"
+    netbox_request_payloads: "{{ netbox_payload | selectattr('value.changed_object_type', 'in', nb_change_types) | map(attribute='value') | list }}"
 
-- name: End play if no matching entries found
-  meta: end_play
+- name: "End play if no matching entries"
+  ansible.builtin.meta: end_play
   when: netbox_request_payloads | length == 0
 
-- name: Process each matching Netbox request payload
+- name: "Process each matching entry"
+  include_tasks: process_entry.yml
   loop: "{{ netbox_request_payloads }}"
   loop_control:
     loop_var: netbox_request_payload
-  block:
-
-    - name: Define nb_change_data based on action
-      set_fact:
-        nb_change_data: >-
-          {% if netbox_request_payload.action.value in nb_create_delete_actions + nb_update_actions %}
-          {{ netbox_request_payload.postchange_data }}
-          {% else %}
-          {{ netbox_request_payload.prechange_data }}
-          {% endif %}
-      when: netbox_request_payload.changed_object_type != "extras.configcontext"
-
-    - name: Update AWX survey for services
-      include_role:
-        name: update_awx_survey
-      vars:
-        survey_group: "service_{{ nb_change_data.name }}"
-      when:
-        - netbox_request_payload.action.value in nb_create_delete_actions
-        - netbox_request_payload.changed_object_type in nb_changed_object_types_service
-        - nb_change_data.device is defined or nb_change_data.virtual_machine is defined
-
-    - name: Handle update actions
-      when: netbox_request_payload.action.value in nb_update_actions
-      block:
-
-        - name: Compute differences between prechange and postchange data
-          set_fact:
-            nb_diff_keys: "{{ netbox_request_payload.prechange_data | recursive_diff_dict(netbox_request_payload.postchange_data) }}"
-
-        - name: Define trigger extra_vars based on changed object type
-          set_fact:
-            trigger_extra_vars: >-
-              {% if netbox_request_payload.changed_object_type == 'extras.configcontext' %}
-              {{ {'sites': [netbox_request_payload.changed_object.name]} }}
-              {% else %}
-              {{ {'system': [netbox_request_payload.changed_object.name]} }}
-              {% endif %}
-          when: netbox_request_payload.changed_object_type in ['extras.configcontext'] + nb_changed_object_types_host
-
-        - name: Run triggers based on differences
-          include_tasks: trigger.yml
-          vars:
-            job_template: "{{ trigger.name }}"
-          loop: "{{ triggers }}"
-          loop_control:
-            loop_var: trigger
-          when: "{{ nb_diff_keys | netbox_trigger_match(trigger.pattern) }}"
-
-        - name: Compute group filters based on differences
-          set_fact:
-            group_filters: >-
-              {{ group_filters | default([]) + [item.key | replace('tags', 'tag') + '_' + (item.value[1] | difference(item.value[0]) | join(''))] }}
-          loop: "{{ nb_diff_keys | dict2items }}"
-          when: item.key in nb_groups
-
-        - name: Update AWX survey for group filters
-          include_role:
-            name: update_awx_survey
-          vars:
-            survey_group: "{{ group_filter }}"
-          loop: "{{ group_filters }}"
-          loop_control:
-            loop_var: group_filter
-          when:
-            - group_filter | length > 0
-            - nb_diff_keys is mapping
-            - (nb_diff_keys.keys() | intersect(nb_groups) | length) > 0
-            - netbox_request_payload.changed_object_type in nb_changed_object_types_host
-
-    - name: Handle create/delete actions for hosts
-      when:
-        - netbox_request_payload.action.value in nb_create_delete_actions
-        - netbox_request_payload.changed_object_type in nb_changed_object_types_host
-      block:
-
-        - name: Update AWX survey for host
-          include_role:
-            name: update_awx_survey
-          vars:
-            host: "{{ nb_change_data.name }}"
-
-        - name: Define trigger extra_vars for system
-          set_fact:
-            trigger_extra_vars:
-              system:
-                - "{{ netbox_request_payload.changed_object.name }}"
-
-        - name: Trigger updates based on local context data
-          include_tasks: trigger.yml
-          vars:
-            job_template: "{{ trigger.name }}"
-          loop: "{{ triggers }}"
-          loop_control:
-            loop_var: trigger
-          when: "{{ nb_change_data.local_context_data | netbox_trigger_match(trigger.pattern) }}"

@@ -1,0 +1,105 @@
+---
+
+- name: "nb_change_data definition"
+  set_fact:
+    nb_change_data: "{{ netbox_request_payload.postchange_data if netbox_request_payload.action.value in ['create', 'update'] else netbox_request_payload.prechange_data }}"
+  when: netbox_request_payload.changed_object_type not in nb_changed_object_types_sites
+
+- name: "Update survey (services)"
+  include_role:
+    name: update_awx_survey
+  vars:
+    survey_group: "service_{{ nb_change_data.name }}"
+  when:
+    - netbox_request_payload.action.value in nb_create_delete_actions
+    - netbox_request_payload.changed_object_type in nb_changed_object_types_service
+    - nb_change_data.device is defined or nb_change_data.virtual_machine is defined
+
+- name: "Update actions"
+  block:
+
+    - name: "Diff Validate change"
+      set_fact:
+        nb_diff_keys: "{{ netbox_request_payload.prechange_data | recursive_diff_dict(netbox_request_payload.postchange_data) }}"
+
+    - name: "Define sites extra_vars"
+      set_fact:
+        trigger_extra_vars:
+          sites:
+            - "{{ netbox_request_payload.changed_object.name }}"
+      when:
+        - netbox_request_payload.changed_object_type in nb_changed_object_types_sites
+
+    - name: "Define system extra_vars"
+      set_fact:
+        trigger_extra_vars:
+          system:
+            - "{{ netbox_request_payload.changed_object.name }}"
+      when:
+        - netbox_request_payload.changed_object_type in nb_changed_object_types_host
+
+    - name: "Run triggers"
+      include_tasks: trigger.yml
+      vars:
+        job_template: "{{ trigger.name }}"
+      loop: "{{ triggers }}"
+      loop_control:
+        loop_var: trigger
+      when: >
+        (nb_diff_keys.data is defined and
+        (nb_diff_keys.data | type_debug) == 'dict' and
+        (nb_diff_keys.data.keys() | select("search", "^" ~ trigger.pattern) | list | length) > 0) or
+        (nb_diff_keys.local_context_data is defined and
+        (nb_diff_keys.local_context_data | type_debug) == 'dict' and
+        (nb_diff_keys.local_context_data.keys() | select("search", "^" ~ trigger.pattern) | list | length) > 0)
+
+    - name: "Compute group filter"
+      set_fact:
+        group_filter: "{{ item.key|replace('tags','tag') }}_{{ item.value[1]|difference(item.value[0])|join('') }}"
+      loop: "{{ nb_diff_keys | dict2items }}"
+      when: item.key in nb_groups
+
+    - name: "Update survey for group"
+      include_role:
+        name: update_awx_survey
+      vars:
+        survey_group: "{{ group_filter }}"
+      when:
+        - group_filter | length > 0
+        - nb_diff_keys | type_debug == 'dict'
+        - nb_diff_keys.keys() | intersect(nb_groups) | length > 0
+        - netbox_request_payload.changed_object_type in nb_changed_object_types_host
+
+  when:
+    - netbox_request_payload.action.value in nb_update_actions
+
+- name: "Create/Delete actions (host)"
+  block:
+
+    - name: "Update survey"
+      include_role:
+        name: update_awx_survey
+      vars:
+        host: "{{ nb_change_data.name }}"
+
+    - name: "Define nftables extra_vars"
+      set_fact:
+        trigger_extra_vars:
+          system:
+            - "{{ netbox_request_payload.changed_object.name }}"
+
+    - name: "Trigger {{ trigger.name }} update"
+      include_tasks: trigger.yml
+      vars:
+        job_template: "{{ trigger.name }}"
+      loop: "{{ triggers }}"
+      loop_control:
+        loop_var: trigger
+      when:
+        - nb_change_data.local_context_data is defined
+        - nb_change_data.local_context_data | type_debug == 'dict'
+        - nb_change_data.local_context_data.keys() | select("search", "^" ~ trigger.pattern) | list | length > 0
+
+  when:
+    - netbox_request_payload.action.value in nb_create_delete_actions
+    - netbox_request_payload.changed_object_type in nb_changed_object_types_host

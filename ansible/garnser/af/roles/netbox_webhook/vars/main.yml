@@ -1,0 +1,6 @@
+---
+
+awx_headers:
+  Authorization: "Bearer {{ awx_token|trim }}"
+  Accept: "application/json"
+  Content-Type: "application/json"
